@@ -84,12 +84,17 @@ class FolderCleanup:
                 # Handle name conflicts
                 counter = 1
                 while dest.exists():
-                    stem = Path(file_path).stem
-                    ext = Path(file_path).suffix
-                    dest = Path(target_dir) / f"{stem}_{counter}{ext}"
+                    if Path(file_path).is_file():
+                        stem = Path(file_path).stem
+                        ext = Path(file_path).suffix
+                        dest = Path(target_dir) / f"{stem}_{counter}{ext}"
+                    else:
+                        # For directories, just append counter
+                        dest = Path(target_dir) / f"{Path(file_path).name}_{counter}"
                     counter += 1
                 shutil.move(file_path, str(dest))
-                print(f"  Moved: {file_path} -> {dest}")
+                item_type = "folder" if Path(file_path).is_dir() else "file"
+                print(f"  Moved {item_type}: {file_path} -> {dest}")
                 return True
             elif action == 'archive':
                 archive_dir = Path(file_path).parent / '_archive'
@@ -150,15 +155,36 @@ class FolderCleanup:
             'important_flagged': 0
         }
 
-        # Get all files in directory (non-recursive for safety)
+        # Get all items in directory (files and folders, non-recursive for safety)
         for item in path.iterdir():
-            if not item.is_file():
+            # Skip the archive folder itself
+            if item.name == '_archive':
                 continue
 
             stats['scanned'] += 1
             file_path = str(item)
+            is_directory = item.is_dir()
 
-            # Check if file is important - skip if it is
+            # Handle directories separately
+            if is_directory:
+                # Get folder age (based on modification time)
+                age_days = self._get_file_age_days(file_path)
+
+                # Apply folder-specific rules from config
+                folder_rules = self.cleanup_rules.get('folders', {})
+
+                if folder_rules and 'archive_after_days' in folder_rules:
+                    if age_days > folder_rules['archive_after_days']:
+                        print(f"📦 {item.name}/ (folder, age: {age_days} days)")
+                        if self._execute_action('archive', file_path):
+                            stats['archived'] += 1
+                        continue
+
+                # If no rules apply, skip the folder
+                stats['skipped'] += 1
+                continue
+
+            # For files: check if file is important - skip if it is
             is_important, importance_category = self._is_important_file(file_path)
             if is_important:
                 print(f"⚠️  IMPORTANT ({importance_category}): {item.name}")

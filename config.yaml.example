@@ -142,6 +142,12 @@ file_categories:
 
 # Cleanup rules
 cleanup_rules:
+  # Rules for folders/directories
+  folders:
+    archive_after_days: 60
+    # Archive old folders (like unzipped archives) after 60 days
+    # Folders will be moved to _archive subfolder
+
   # Rules by file category
   by_category:
     temporary:
