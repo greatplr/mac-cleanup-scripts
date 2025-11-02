@@ -64,6 +64,9 @@ Scans directories for files that may contain important information (credentials,
 
 # Just show results without interactive review
 ./cleanup/important-file-finder.py ~/Downloads --no-interactive
+
+# Force rescan - show all files even if previously reviewed
+./cleanup/important-file-finder.py ~/Downloads --save-log actions.json --force-rescan
 ```
 
 **Features:**
@@ -253,6 +256,39 @@ Create a cron job or use launchd to run these scripts regularly:
 # Add to crontab (crontab -e):
 0 10 * * 0 cd /Users/ryan/Code/scripts && ./cleanup/cleanup-folders.py
 ```
+
+## Reprocessing Files
+
+If you want to review files again that were previously processed, you have several options:
+
+### Option 1: Force Rescan (Recommended)
+Use the `--force-rescan` flag to ignore the processed files log:
+```bash
+./cleanup/important-file-finder.py ~/Downloads --save-log actions.json --force-rescan
+```
+This will show all files again, even ones you previously reviewed. New actions will still be logged.
+
+### Option 2: Don't Use Logging
+Run without `--save-log` to see all files every time:
+```bash
+./cleanup/important-file-finder.py ~/Downloads
+```
+
+### Option 3: Use a Different Log File
+Start a fresh session with a new log:
+```bash
+./cleanup/important-file-finder.py ~/Downloads --save-log new-actions.json
+```
+
+### Option 4: Delete the Log File
+Remove the log file completely:
+```bash
+rm ~/cleanup-actions.json
+./cleanup/important-file-finder.py ~/Downloads --save-log ~/cleanup-actions.json
+```
+
+### Option 5: Edit the Log File
+The log is JSON format. You can manually edit it to remove specific file entries you want to see again.
 
 ## Safety Features
 

@@ -476,13 +476,18 @@ def main():
         '--save-log',
         help='Save action log to JSON file (e.g., --save-log actions.json)'
     )
+    parser.add_argument(
+        '--force-rescan',
+        action='store_true',
+        help='Ignore processed files log and show all files (even previously reviewed ones)'
+    )
 
     args = parser.parse_args()
 
     finder = ImportantFileFinder(config_path=args.config)
 
-    # Use save_log path to exclude previously processed files
-    exclude_log = args.save_log if args.save_log else None
+    # Use save_log path to exclude previously processed files (unless force-rescan is enabled)
+    exclude_log = None if args.force_rescan else (args.save_log if args.save_log else None)
 
     files = finder.scan_directory(
         args.directory,
