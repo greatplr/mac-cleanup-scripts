@@ -48,6 +48,9 @@ important_patterns:
     - "*.pem"
     - "*.key"
     - "*api*key*.txt"
+    - "*.env"
+    - "*secret*.txt"
+    - "*token*.txt"
 
   2fa_backup:
     - "*backup*code*.txt"
@@ -75,6 +78,30 @@ important_patterns:
     - "*seed*.txt"
     - "*recovery*phrase*.txt"
     - "*private*key*.txt"
+
+  database_backups:
+    - "*.sql"
+    - "*.sql.gz"
+    - "*backup*.db"
+    - "*.sqlite"
+    # Note: Excludes Thumbs.db (Windows cache file)
+
+  site_backups:
+    - "*backup*.tar.gz"
+    - "*backup*.zip"
+    - "*backup*.tar"
+
+  config_files:
+    - "*.json"
+    - "*config*.json"
+    - "*settings*.json"
+    - "*.env"
+
+  documentation:
+    - "*.md"
+    - "*README*"
+    - "*guide*.md"
+    - "*instructions*.md"
 
 # File categories by extension
 file_categories:
