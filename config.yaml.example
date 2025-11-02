@@ -47,10 +47,13 @@ important_patterns:
     - "*aws*.csv"
     - "*.pem"
     - "*.key"
-    - "*api*key*.txt"
+    - "*api*key*"
     - "*.env"
-    - "*secret*.txt"
-    - "*token*.txt"
+    - "*secret*"
+    - "*token*"
+    - "*access*key*"
+    - "*access*Keys*"
+    - "*auth*"
 
   2fa_backup:
     - "*backup*code*.txt"
