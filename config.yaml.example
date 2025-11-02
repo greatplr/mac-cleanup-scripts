@@ -1,0 +1,150 @@
+# Configuration for Mac Cleanup Scripts
+
+# Patterns for identifying important files
+important_patterns:
+  credentials:
+    - "*credentials*.csv"
+    - "*password*.txt"
+    - "*smtp*.csv"
+    - "*aws*.csv"
+    - "*.pem"
+    - "*.key"
+    - "*api*key*.txt"
+
+  2fa_backup:
+    - "*backup*code*.txt"
+    - "*recovery*code*.txt"
+    - "*2fa*.txt"
+    - "*authenticator*.txt"
+
+  financial:
+    - "*tax*.pdf"
+    - "*invoice*.pdf"
+    - "*receipt*.pdf"
+    - "*bank*statement*.pdf"
+    - "*w2*.pdf"
+    - "*1099*.pdf"
+
+  personal_docs:
+    - "*passport*.pdf"
+    - "*license*.pdf"
+    - "*insurance*.pdf"
+    - "*contract*.pdf"
+    - "*deed*.pdf"
+
+  crypto:
+    - "*wallet*.txt"
+    - "*seed*.txt"
+    - "*recovery*phrase*.txt"
+    - "*private*key*.txt"
+
+# File categories by extension
+file_categories:
+  documents:
+    - .pdf
+    - .doc
+    - .docx
+    - .txt
+    - .rtf
+    - .pages
+
+  spreadsheets:
+    - .xls
+    - .xlsx
+    - .csv
+    - .numbers
+
+  images:
+    - .jpg
+    - .jpeg
+    - .png
+    - .gif
+    - .heic
+    - .svg
+    - .webp
+
+  videos:
+    - .mp4
+    - .mov
+    - .avi
+    - .mkv
+
+  audio:
+    - .mp3
+    - .wav
+    - .m4a
+    - .flac
+
+  archives:
+    - .zip
+    - .tar
+    - .gz
+    - .7z
+    - .rar
+
+  disk_images:
+    - .dmg
+    - .iso
+
+  code:
+    - .py
+    - .js
+    - .ts
+    - .java
+    - .cpp
+    - .c
+    - .h
+    - .sh
+
+  temporary:
+    - .tmp
+    - .temp
+    - .log
+    - .cache
+
+# Cleanup rules
+cleanup_rules:
+  # Rules by file category
+  by_category:
+    temporary:
+      delete_after_days: 7
+
+    disk_images:
+      delete_after_days: 30
+
+    archives:
+      archive_after_days: 60
+
+    images:
+      organize_to: ~/Pictures/Downloaded
+      # Only organize, don't auto-delete
+
+    videos:
+      organize_to: ~/Movies/Downloaded
+
+    documents:
+      # Don't auto-process documents, they may be important
+      # archive_after_days: 90
+
+    spreadsheets:
+      # Don't auto-process, often contain important data
+
+  # General rules by age (applied if no category rule matches)
+  by_age:
+    - days: 180
+      action: archive
+      # Archive anything older than 6 months
+
+    # Uncomment to enable aggressive cleanup:
+    # - days: 365
+    #   action: delete
+    #   # Delete archived files older than 1 year
+
+# Organize target directories (created automatically if needed)
+organize_dirs:
+  documents: ~/Documents/Imported
+  spreadsheets: ~/Documents/Spreadsheets
+  images: ~/Pictures/Downloaded
+  videos: ~/Movies/Downloaded
+  audio: ~/Music/Downloaded
+  code: ~/Code/Downloaded
