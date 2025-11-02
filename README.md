@@ -68,12 +68,17 @@ Scans directories for files that may contain important information (credentials,
 
 **Features:**
 - Identifies files matching important patterns (credentials, 2FA backup codes, financial docs, etc.)
-- **NEW:** Preview file contents in terminal (press 'v')
-- **NEW:** Quick destination shortcuts (1-6) for common organization folders
-- **NEW:** Tracks processed files - won't show them again if using --save-log
-- **NEW:** Save scan results and action logs to JSON
+- **Preview file contents** in terminal (press 'v')
+- **Unlimited quick destinations** - use any keys you want (1-9, a-z, etc.)
+- **Smart error handling** - alerts if network drives are offline, offers retry
+- **Safe delete options**:
+  - Move to Trash (default, recoverable)
+  - Permanent delete (requires confirmation)
+- **Tracks processed files** - won't show them again if using --save-log
+- **Auto-creates directories** - asks before creating missing destination folders
+- **Save scan results and action logs** to JSON
 - Interactive review mode to decide what to do with each file
-- Actions: View, Open, Move (quick or custom), Delete, Keep, Skip
+- Actions: View, Open, Move (quick or custom), Delete/Trash, Keep, Skip
 - Shows file age, size, and categories
 - Automatically handles file name conflicts when moving
 
@@ -133,6 +138,26 @@ quick_destinations:
 ```
 
 During interactive review, press `1`, `2`, etc. to instantly move files to these locations.
+
+**Notes:**
+- No limit on number of destinations - use any single character as a key
+- Can use numbers (1-9), letters (a-z), or other characters
+- Network drives are supported - script will alert you if they're offline
+- Directories are created automatically with your permission
+
+**Example with network drive:**
+
+```yaml
+quick_destinations:
+  "7":
+    label: "Network Backup"
+    path: /Volumes/MyNAS/Important-Files
+```
+
+If the network drive is offline when you try to use it:
+- Script detects the issue and shows a clear error
+- Asks if you want to try a different destination
+- File stays in place if you cancel
 
 ### Important Patterns
 
@@ -230,6 +255,19 @@ Create a cron job or use launchd to run these scripts regularly:
 ```
 
 ## Safety Features
+
+### important-file-finder.py
+
+- **Trash by default** - Delete option moves files to macOS Trash (recoverable)
+- **Permanent delete requires confirmation** - Must type 'yes' to permanently delete
+- **Network drive detection** - Alerts if destination is offline before attempting move
+- **Directory validation** - Checks write permissions before moving files
+- **Asks before creating directories** - Won't silently create folders
+- **File conflict handling** - Auto-renames if destination file already exists
+- **Action logging** - All moves/deletes/keeps are logged for audit trail
+- **Processed file tracking** - Won't show already-reviewed files again
+
+### cleanup-folders.py
 
 - **Important files are never auto-deleted** - Files matching important patterns are flagged and skipped
 - **Dry-run mode** - Test before making changes

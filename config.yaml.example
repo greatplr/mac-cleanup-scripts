@@ -27,6 +27,17 @@ quick_destinations:
     label: "Work Documents"
     path: ~/Documents/Work
 
+  "7":
+    label: "Network Backup"
+    path: /Volumes/NetworkDrive/Backups
+    # Note: If network drive is offline, script will alert you and ask to retry
+
+  # You can add as many quick destinations as you want!
+  # Use any single character as the key (numbers, letters, etc.)
+  # "a":
+  #   label: "Archive"
+  #   path: ~/Archives
+
 # Patterns for identifying important files
 important_patterns:
   credentials:

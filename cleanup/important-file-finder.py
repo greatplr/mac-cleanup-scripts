@@ -77,7 +77,7 @@ class ImportantFileFinder:
 
                 for log_entry in logs:
                     for action in log_entry.get('actions', []):
-                        if action['action'] in ['KEEP', 'MOVED', 'DELETED']:
+                        if action['action'] in ['KEEP', 'MOVED', 'DELETED', 'TRASHED']:
                             # For MOVED, use 'from' path
                             path = action.get('from') or action.get('path')
                             if path:
@@ -215,30 +215,32 @@ class ImportantFileFinder:
                     # Quick destination
                     dest_info = self.quick_destinations[choice]
                     dest_path = Path(dest_info['path']).expanduser()
-                    dest_path.mkdir(parents=True, exist_ok=True)
 
-                    import shutil
-                    new_path = dest_path / file_info['name']
-                    counter = 1
-                    while new_path.exists():
-                        stem = Path(file_info['name']).stem
-                        ext = Path(file_info['name']).suffix
-                        new_path = dest_path / f"{stem}_{counter}{ext}"
-                        counter += 1
+                    # Check if destination is accessible
+                    try:
+                        # Try to access the parent directory first
+                        if not dest_path.parent.exists():
+                            print(f"\n❌ Error: Parent directory does not exist: {dest_path.parent}")
+                            print(f"   This might be a network drive that's offline.")
+                            retry = input("   Try a different destination? (y/n): ")
+                            if retry.lower() == 'y':
+                                continue
+                            else:
+                                break
 
-                    shutil.move(file_info['path'], str(new_path))
-                    actions_log.append({
-                        'action': 'MOVED',
-                        'from': file_info['path'],
-                        'to': str(new_path),
-                        'destination': dest_info['label']
-                    })
-                    print(f"✓ Moved to {dest_info['label']}: {new_path}")
-                    break
-                elif choice == 'm':
-                    dest = input("Enter destination path: ").strip()
-                    dest_path = Path(dest).expanduser()
-                    if dest_path.exists() and dest_path.is_dir():
+                        # Create destination directory
+                        dest_path.mkdir(parents=True, exist_ok=True)
+
+                        # Verify we can write to it
+                        if not os.access(dest_path, os.W_OK):
+                            print(f"\n❌ Error: Cannot write to destination: {dest_path}")
+                            print(f"   Check permissions or if network drive is mounted.")
+                            retry = input("   Try a different destination? (y/n): ")
+                            if retry.lower() == 'y':
+                                continue
+                            else:
+                                break
+
                         import shutil
                         new_path = dest_path / file_info['name']
                         counter = 1
@@ -247,6 +249,64 @@ class ImportantFileFinder:
                             ext = Path(file_info['name']).suffix
                             new_path = dest_path / f"{stem}_{counter}{ext}"
                             counter += 1
+
+                        shutil.move(file_info['path'], str(new_path))
+                        actions_log.append({
+                            'action': 'MOVED',
+                            'from': file_info['path'],
+                            'to': str(new_path),
+                            'destination': dest_info['label']
+                        })
+                        print(f"✓ Moved to {dest_info['label']}: {new_path}")
+                        break
+
+                    except PermissionError as e:
+                        print(f"\n❌ Permission denied: {e}")
+                        print(f"   Check if you have write access to {dest_path}")
+                        retry = input("   Try a different destination? (y/n): ")
+                        if retry.lower() != 'y':
+                            break
+                    except OSError as e:
+                        print(f"\n❌ Error accessing destination: {e}")
+                        print(f"   Network drive might be offline or path is invalid.")
+                        retry = input("   Try a different destination? (y/n): ")
+                        if retry.lower() != 'y':
+                            break
+                    except Exception as e:
+                        print(f"\n❌ Unexpected error: {e}")
+                        retry = input("   Try a different destination? (y/n): ")
+                        if retry.lower() != 'y':
+                            break
+                elif choice == 'm':
+                    dest = input("Enter destination path: ").strip()
+                    dest_path = Path(dest).expanduser()
+
+                    try:
+                        if not dest_path.exists():
+                            create = input(f"Directory doesn't exist. Create it? (y/n): ")
+                            if create.lower() == 'y':
+                                dest_path.mkdir(parents=True, exist_ok=True)
+                            else:
+                                print("Move cancelled.")
+                                continue
+
+                        if not dest_path.is_dir():
+                            print(f"Error: {dest} is not a directory")
+                            continue
+
+                        if not os.access(dest_path, os.W_OK):
+                            print(f"Error: Cannot write to {dest_path}")
+                            continue
+
+                        import shutil
+                        new_path = dest_path / file_info['name']
+                        counter = 1
+                        while new_path.exists():
+                            stem = Path(file_info['name']).stem
+                            ext = Path(file_info['name']).suffix
+                            new_path = dest_path / f"{stem}_{counter}{ext}"
+                            counter += 1
+
                         shutil.move(file_info['path'], str(new_path))
                         actions_log.append({
                             'action': 'MOVED',
@@ -255,20 +315,60 @@ class ImportantFileFinder:
                         })
                         print(f"✓ Moved to {new_path}")
                         break
-                    else:
-                        print(f"Invalid destination: {dest}")
+
+                    except Exception as e:
+                        print(f"Error moving file: {e}")
+                        continue
                 elif choice == 'd':
-                    confirm = input("Are you sure you want to delete? (yes/no): ").lower()
-                    if confirm == 'yes':
-                        os.remove(file_info['path'])
-                        actions_log.append({
-                            'action': 'DELETED',
-                            'path': file_info['path']
-                        })
-                        print("✓ File deleted.")
-                        break
-                    else:
+                    print("\nDelete options:")
+                    print("  [t] Move to Trash (safe, can recover)")
+                    print("  [p] Permanent delete (cannot recover)")
+                    print("  [c] Cancel")
+                    delete_choice = input("\nChoice: ").lower().strip()
+
+                    if delete_choice == 't':
+                        # Move to trash using macOS command
+                        try:
+                            result = subprocess.run(
+                                ['osascript', '-e', f'tell application "Finder" to delete POSIX file "{file_info["path"]}"'],
+                                capture_output=True,
+                                text=True,
+                                check=True
+                            )
+                            actions_log.append({
+                                'action': 'TRASHED',
+                                'path': file_info['path']
+                            })
+                            print("✓ File moved to Trash.")
+                            break
+                        except subprocess.CalledProcessError as e:
+                            print(f"Error moving to trash: {e}")
+                            print("Falling back to asking for permanent delete...")
+                            continue
+                        except Exception as e:
+                            print(f"Error: {e}")
+                            continue
+
+                    elif delete_choice == 'p':
+                        confirm = input("⚠️  PERMANENT DELETE - Are you absolutely sure? (type 'yes'): ").lower()
+                        if confirm == 'yes':
+                            try:
+                                os.remove(file_info['path'])
+                                actions_log.append({
+                                    'action': 'DELETED',
+                                    'path': file_info['path']
+                                })
+                                print("✓ File permanently deleted.")
+                                break
+                            except Exception as e:
+                                print(f"Error deleting file: {e}")
+                                continue
+                        else:
+                            print("Delete cancelled.")
+                    elif delete_choice == 'c':
                         print("Delete cancelled.")
+                    else:
+                        print("Invalid choice.")
                 elif choice == 'k':
                     actions_log.append({
                         'action': 'KEEP',
@@ -307,7 +407,9 @@ class ImportantFileFinder:
                 print(f"  MOVED: {action['from']}")
                 print(f"      → {action['to']} ({dest})")
             elif action['action'] == 'DELETED':
-                print(f"  DELETED: {action['path']}")
+                print(f"  DELETED (permanent): {action['path']}")
+            elif action['action'] == 'TRASHED':
+                print(f"  TRASHED (recoverable): {action['path']}")
             elif action['action'] == 'KEEP':
                 print(f"  KEEP: {action['path']}")
             elif action['action'] == 'SKIPPED':
