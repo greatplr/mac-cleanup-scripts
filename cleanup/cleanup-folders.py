@@ -147,6 +147,10 @@ class FolderCleanup:
             if category in self.cleanup_rules.get('by_category', {}):
                 cat_rules = self.cleanup_rules['by_category'][category]
 
+                # Skip if category has no rules (None/null in YAML)
+                if cat_rules is None:
+                    continue
+
                 if 'delete_after_days' in cat_rules:
                     if age_days > cat_rules['delete_after_days']:
                         print(f"🗑️  {item.name} (age: {age_days} days, category: {category})")
