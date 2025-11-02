@@ -170,10 +170,25 @@ class FolderCleanup:
             'important_flagged': 0
         }
 
+        # System files to always skip
+        system_files = {
+            '.DS_Store',      # macOS folder metadata
+            '.localized',     # macOS folder name localization
+            'Thumbs.db',      # Windows thumbnail cache
+            'desktop.ini',    # Windows folder settings
+            '.Spotlight-V100', # macOS Spotlight index
+            '.Trashes',       # macOS trash folder
+            '.fseventsd'      # macOS file system events
+        }
+
         # Get all items in directory (files and folders, non-recursive for safety)
         for item in path.iterdir():
             # Skip the archive folder itself
             if item.name == '_archive':
+                continue
+
+            # Skip system files
+            if item.name in system_files:
                 continue
 
             stats['scanned'] += 1
