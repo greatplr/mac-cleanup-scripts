@@ -178,6 +178,19 @@ cleanup_rules:
     #   action: delete
     #   # Delete archived files older than 1 year
 
+# Safe directories allowed for automatic cleanup
+# IMPORTANT: cleanup-folders.py will ONLY process these directories
+# This prevents accidental cleanup of system folders or important directories
+safe_cleanup_directories:
+  - ~/Downloads
+  - ~/Desktop
+  - ~/Documents/Downloaded-Docs
+  - ~/Documents/Spreadsheets
+  - ~/Pictures/Downloaded
+  - ~/Movies/Downloaded
+  # Add more directories as needed
+  # - ~/Documents/Projects/OldProjects
+
 # Organize target directories (created automatically if needed)
 organize_dirs:
   documents: ~/Documents/Imported
