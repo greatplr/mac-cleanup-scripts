@@ -187,15 +187,23 @@ cleanup_rules:
 # Safe directories allowed for automatic cleanup
 # IMPORTANT: cleanup-folders.py will ONLY process these directories
 # This prevents accidental cleanup of system folders or important directories
+# Set process_folders: false to skip folder archiving in specific directories
 safe_cleanup_directories:
-  - ~/Downloads
-  - ~/Desktop
-  - ~/Documents/Downloaded-Docs
-  - ~/Documents/Spreadsheets
-  - ~/Pictures/Downloaded
-  - ~/Movies/Downloaded
+  - path: ~/Downloads
+    process_folders: true     # Archive old folders (like unzipped archives)
+  - path: ~/Desktop
+    process_folders: true
+  - path: ~/Documents/Downloaded-Docs
+    process_folders: false    # Only process files, skip folders
+  - path: ~/Documents/Spreadsheets
+    process_folders: false
+  - path: ~/Pictures/Downloaded
+    process_folders: false
+  - path: ~/Movies/Downloaded
+    process_folders: false
   # Add more directories as needed
-  # - ~/Documents/Projects/OldProjects
+  # - path: ~/Documents/Projects/OldProjects
+  #   process_folders: true
 
 # Organize target directories (created automatically if needed)
 organize_dirs:

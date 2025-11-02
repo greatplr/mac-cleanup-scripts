@@ -104,21 +104,28 @@ class FolderCleanup:
             return False
 
     def _is_safe_directory(self, directory, allow_any=False):
-        """Check if directory is in the safe list"""
+        """Check if directory is in the safe list and return config"""
         if allow_any:
-            return True
+            return True, {'process_folders': True}
 
         path = Path(directory).expanduser().resolve()
 
         # Check against safe directories list
         for safe_dir in self.safe_directories:
-            safe_path = Path(safe_dir).expanduser().resolve()
+            # Handle both old format (string) and new format (dict)
+            if isinstance(safe_dir, str):
+                safe_path = Path(safe_dir).expanduser().resolve()
+                config = {'process_folders': True}  # Default for old format
+            else:
+                safe_path = Path(safe_dir['path']).expanduser().resolve()
+                config = safe_dir
+
             if path == safe_path:
-                return True
+                return True, config
 
-        return False
+        return False, {}
 
-    def cleanup_directory(self, directory, dry_run=False, allow_any_directory=False):
+    def cleanup_directory(self, directory, dry_run=False, allow_any_directory=False, skip_folders=False):
         """Clean up a directory based on rules"""
         self.dry_run = dry_run
         path = Path(directory).expanduser()
@@ -128,18 +135,26 @@ class FolderCleanup:
             return
 
         # Safety check - only allow whitelisted directories
-        if not self._is_safe_directory(directory, allow_any=allow_any_directory):
+        is_safe, dir_config = self._is_safe_directory(directory, allow_any=allow_any_directory)
+        if not is_safe:
             print(f"\n{'='*80}")
             print(f"🛑 SAFETY ERROR: Directory not in safe cleanup list")
             print(f"{'='*80}")
             print(f"Directory: {path}")
             print(f"\nFor safety, cleanup is only allowed in these directories:")
             for safe_dir in self.safe_directories:
-                print(f"  - {safe_dir}")
+                if isinstance(safe_dir, str):
+                    print(f"  - {safe_dir}")
+                else:
+                    print(f"  - {safe_dir['path']}")
             print(f"\nTo add this directory to the safe list, edit config.yaml")
             print(f"Or use --allow-any-directory flag to override (use with caution!)")
             print(f"{'='*80}\n")
             return
+
+        # Determine if we should process folders
+        # Command line flag overrides config
+        process_folders = not skip_folders and dir_config.get('process_folders', True)
 
         print(f"\n{'='*80}")
         print(f"Cleaning up: {path}")
@@ -167,6 +182,11 @@ class FolderCleanup:
 
             # Handle directories separately
             if is_directory:
+                # Skip folders if process_folders is disabled
+                if not process_folders:
+                    stats['skipped'] += 1
+                    continue
+
                 # Get folder age (based on modification time)
                 age_days = self._get_file_age_days(file_path)
 
@@ -290,6 +310,11 @@ def main():
         action='store_true',
         help='⚠️  DANGER: Allow cleanup in any directory (bypasses safety whitelist)'
     )
+    parser.add_argument(
+        '--skip-folders',
+        action='store_true',
+        help='Skip folder processing (only process files)'
+    )
 
     args = parser.parse_args()
 
@@ -299,7 +324,8 @@ def main():
         cleaner.cleanup_directory(
             directory,
             dry_run=args.dry_run,
-            allow_any_directory=args.allow_any_directory
+            allow_any_directory=args.allow_any_directory,
+            skip_folders=args.skip_folders
         )
 
 
