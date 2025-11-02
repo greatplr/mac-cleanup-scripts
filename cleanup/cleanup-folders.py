@@ -20,6 +20,7 @@ class FolderCleanup:
         self.cleanup_rules = self.config.get('cleanup_rules', {})
         self.file_categories = self.config.get('file_categories', {})
         self.important_patterns = self.config.get('important_patterns', {})
+        self.safe_directories = self.config.get('safe_cleanup_directories', [])
         self.dry_run = False
 
     def _load_config(self, config_path):
@@ -97,13 +98,42 @@ class FolderCleanup:
             print(f"  Error: {e}")
             return False
 
-    def cleanup_directory(self, directory, dry_run=False):
+    def _is_safe_directory(self, directory, allow_any=False):
+        """Check if directory is in the safe list"""
+        if allow_any:
+            return True
+
+        path = Path(directory).expanduser().resolve()
+
+        # Check against safe directories list
+        for safe_dir in self.safe_directories:
+            safe_path = Path(safe_dir).expanduser().resolve()
+            if path == safe_path:
+                return True
+
+        return False
+
+    def cleanup_directory(self, directory, dry_run=False, allow_any_directory=False):
         """Clean up a directory based on rules"""
         self.dry_run = dry_run
         path = Path(directory).expanduser()
 
         if not path.exists():
             print(f"Error: Directory '{directory}' does not exist")
+            return
+
+        # Safety check - only allow whitelisted directories
+        if not self._is_safe_directory(directory, allow_any=allow_any_directory):
+            print(f"\n{'='*80}")
+            print(f"🛑 SAFETY ERROR: Directory not in safe cleanup list")
+            print(f"{'='*80}")
+            print(f"Directory: {path}")
+            print(f"\nFor safety, cleanup is only allowed in these directories:")
+            for safe_dir in self.safe_directories:
+                print(f"  - {safe_dir}")
+            print(f"\nTo add this directory to the safe list, edit config.yaml")
+            print(f"Or use --allow-any-directory flag to override (use with caution!)")
+            print(f"{'='*80}\n")
             return
 
         print(f"\n{'='*80}")
@@ -229,13 +259,22 @@ def main():
         default='config.yaml',
         help='Path to config file (default: config.yaml)'
     )
+    parser.add_argument(
+        '--allow-any-directory',
+        action='store_true',
+        help='⚠️  DANGER: Allow cleanup in any directory (bypasses safety whitelist)'
+    )
 
     args = parser.parse_args()
 
     cleaner = FolderCleanup(config_path=args.config)
 
     for directory in args.directories:
-        cleaner.cleanup_directory(directory, dry_run=args.dry_run)
+        cleaner.cleanup_directory(
+            directory,
+            dry_run=args.dry_run,
+            allow_any_directory=args.allow_any_directory
+        )
 
 
 if __name__ == '__main__':
