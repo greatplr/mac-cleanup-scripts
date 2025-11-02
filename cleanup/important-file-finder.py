@@ -12,11 +12,14 @@ from pathlib import Path
 from datetime import datetime
 import yaml
 import re
+import json
+import subprocess
 
 class ImportantFileFinder:
     def __init__(self, config_path='config.yaml'):
         self.config = self._load_config(config_path)
         self.important_patterns = self.config.get('important_patterns', {})
+        self.quick_destinations = self.config.get('quick_destinations', {})
 
     def _load_config(self, config_path):
         """Load configuration from YAML file"""
@@ -60,9 +63,38 @@ class ImportantFileFinder:
         age_seconds = datetime.now().timestamp() - mtime
         return int(age_seconds / 86400)
 
-    def scan_directory(self, directory, recursive=True):
+    def _load_processed_files(self, log_path):
+        """Load list of processed (kept/moved/deleted) files from log"""
+        processed = set()
+        if not log_path or not Path(log_path).exists():
+            return processed
+
+        try:
+            with open(log_path, 'r') as f:
+                logs = json.load(f)
+                if not isinstance(logs, list):
+                    logs = [logs]
+
+                for log_entry in logs:
+                    for action in log_entry.get('actions', []):
+                        if action['action'] in ['KEEP', 'MOVED', 'DELETED']:
+                            # For MOVED, use 'from' path
+                            path = action.get('from') or action.get('path')
+                            if path:
+                                processed.add(path)
+        except Exception as e:
+            print(f"Warning: Could not load processed files log: {e}")
+
+        return processed
+
+    def scan_directory(self, directory, recursive=True, exclude_processed_log=None):
         """Scan directory for important files"""
         important_files = []
+
+        # Load processed files to exclude
+        processed_files = self._load_processed_files(exclude_processed_log)
+        if processed_files:
+            print(f"Excluding {len(processed_files)} previously processed files...")
 
         path = Path(directory).expanduser()
         if not path.exists():
@@ -77,15 +109,21 @@ class ImportantFileFinder:
 
         for file_path in files:
             if file_path.is_file():
-                matches = self._check_file_importance(str(file_path))
+                file_path_str = str(file_path)
+
+                # Skip if already processed
+                if file_path_str in processed_files:
+                    continue
+
+                matches = self._check_file_importance(file_path_str)
                 if matches:
                     stat = file_path.stat()
                     important_files.append({
-                        'path': str(file_path),
+                        'path': file_path_str,
                         'name': file_path.name,
                         'categories': matches,
                         'size': stat.st_size,
-                        'age_days': self._get_file_age_days(str(file_path)),
+                        'age_days': self._get_file_age_days(file_path_str),
                         'modified': datetime.fromtimestamp(stat.st_mtime)
                     })
 
@@ -109,7 +147,30 @@ class ImportantFileFinder:
             print(f"    Age: {file_info['age_days']} days")
             print(f"    Modified: {file_info['modified'].strftime('%Y-%m-%d %H:%M:%S')}")
 
-    def interactive_review(self, files):
+    def _preview_file(self, file_path):
+        """Preview file contents based on type"""
+        ext = Path(file_path).suffix.lower()
+
+        # Text-based files - show first 20 lines
+        text_extensions = ['.txt', '.csv', '.log', '.md', '.json', '.xml', '.yaml', '.yml', '.pem', '.key']
+        if ext in text_extensions:
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()[:20]
+                    print("\n" + "─" * 80)
+                    print("PREVIEW (first 20 lines):")
+                    print("─" * 80)
+                    for line in lines:
+                        print(line.rstrip())
+                    if len(lines) == 20:
+                        print("... (file continues)")
+                    print("─" * 80)
+            except Exception as e:
+                print(f"Could not preview: {e}")
+        else:
+            print(f"Cannot preview {ext} files in terminal. Use 'o' to open.")
+
+    def interactive_review(self, files, save_log=None):
         """Interactive review of important files"""
         if not files:
             return
@@ -128,18 +189,51 @@ class ImportantFileFinder:
 
             while True:
                 print("\nWhat would you like to do?")
-                print("  [k] Keep as is")
-                print("  [m] Move to a specific location")
+                print("  [v] View/preview file contents")
+                print("  [o] Open file in default app")
+
+                # Show quick destinations
+                if self.quick_destinations:
+                    print("\n  Quick move destinations:")
+                    for key, dest in self.quick_destinations.items():
+                        print(f"    [{key}] {dest['label']} ({dest['path']})")
+
+                print("\n  [m] Move to custom location")
                 print("  [d] Delete")
-                print("  [o] Open file")
-                print("  [s] Skip for now")
+                print("  [k] Keep as is (mark reviewed, won't show again)")
+                print("  [s] Skip for now (will show in next scan)")
                 print("  [q] Quit")
 
                 choice = input("\nChoice: ").lower().strip()
 
-                if choice == 'k':
-                    actions_log.append(f"KEEP: {file_info['path']}")
-                    print("Keeping file as is.")
+                if choice == 'v':
+                    self._preview_file(file_info['path'])
+                elif choice == 'o':
+                    os.system(f"open '{file_info['path']}'")
+                    print("File opened.")
+                elif choice in self.quick_destinations:
+                    # Quick destination
+                    dest_info = self.quick_destinations[choice]
+                    dest_path = Path(dest_info['path']).expanduser()
+                    dest_path.mkdir(parents=True, exist_ok=True)
+
+                    import shutil
+                    new_path = dest_path / file_info['name']
+                    counter = 1
+                    while new_path.exists():
+                        stem = Path(file_info['name']).stem
+                        ext = Path(file_info['name']).suffix
+                        new_path = dest_path / f"{stem}_{counter}{ext}"
+                        counter += 1
+
+                    shutil.move(file_info['path'], str(new_path))
+                    actions_log.append({
+                        'action': 'MOVED',
+                        'from': file_info['path'],
+                        'to': str(new_path),
+                        'destination': dest_info['label']
+                    })
+                    print(f"✓ Moved to {dest_info['label']}: {new_path}")
                     break
                 elif choice == 'm':
                     dest = input("Enter destination path: ").strip()
@@ -147,9 +241,19 @@ class ImportantFileFinder:
                     if dest_path.exists() and dest_path.is_dir():
                         import shutil
                         new_path = dest_path / file_info['name']
+                        counter = 1
+                        while new_path.exists():
+                            stem = Path(file_info['name']).stem
+                            ext = Path(file_info['name']).suffix
+                            new_path = dest_path / f"{stem}_{counter}{ext}"
+                            counter += 1
                         shutil.move(file_info['path'], str(new_path))
-                        actions_log.append(f"MOVED: {file_info['path']} -> {new_path}")
-                        print(f"Moved to {new_path}")
+                        actions_log.append({
+                            'action': 'MOVED',
+                            'from': file_info['path'],
+                            'to': str(new_path)
+                        })
+                        print(f"✓ Moved to {new_path}")
                         break
                     else:
                         print(f"Invalid destination: {dest}")
@@ -157,34 +261,84 @@ class ImportantFileFinder:
                     confirm = input("Are you sure you want to delete? (yes/no): ").lower()
                     if confirm == 'yes':
                         os.remove(file_info['path'])
-                        actions_log.append(f"DELETED: {file_info['path']}")
-                        print("File deleted.")
+                        actions_log.append({
+                            'action': 'DELETED',
+                            'path': file_info['path']
+                        })
+                        print("✓ File deleted.")
                         break
                     else:
                         print("Delete cancelled.")
-                elif choice == 'o':
-                    os.system(f"open '{file_info['path']}'")
-                    print("File opened.")
+                elif choice == 'k':
+                    actions_log.append({
+                        'action': 'KEEP',
+                        'path': file_info['path']
+                    })
+                    print("✓ Marked as reviewed (keeping as is).")
+                    break
                 elif choice == 's':
-                    actions_log.append(f"SKIPPED: {file_info['path']}")
-                    print("Skipping...")
+                    actions_log.append({
+                        'action': 'SKIPPED',
+                        'path': file_info['path']
+                    })
+                    print("Skipping for now...")
                     break
                 elif choice == 'q':
                     print("\nQuitting...")
-                    if actions_log:
-                        print("\nActions taken:")
-                        for action in actions_log:
-                            print(f"  {action}")
+                    self._save_action_log(actions_log, save_log)
                     return
                 else:
                     print("Invalid choice. Please try again.")
 
-        if actions_log:
-            print(f"\n{'='*80}")
-            print("Review complete! Actions taken:")
-            print(f"{'='*80}")
-            for action in actions_log:
-                print(f"  {action}")
+        # Save log at the end
+        self._save_action_log(actions_log, save_log)
+
+    def _save_action_log(self, actions_log, save_log):
+        """Save actions log to file"""
+        if not actions_log:
+            return
+
+        print(f"\n{'='*80}")
+        print("Review complete! Actions taken:")
+        print(f"{'='*80}")
+        for action in actions_log:
+            if action['action'] == 'MOVED':
+                dest = action.get('destination', 'custom location')
+                print(f"  MOVED: {action['from']}")
+                print(f"      → {action['to']} ({dest})")
+            elif action['action'] == 'DELETED':
+                print(f"  DELETED: {action['path']}")
+            elif action['action'] == 'KEEP':
+                print(f"  KEEP: {action['path']}")
+            elif action['action'] == 'SKIPPED':
+                print(f"  SKIPPED: {action['path']}")
+
+        # Save to file if requested
+        if save_log:
+            log_data = {
+                'timestamp': datetime.now().isoformat(),
+                'actions': actions_log
+            }
+
+            log_path = Path(save_log).expanduser()
+
+            # Append to existing log or create new
+            if log_path.exists():
+                with open(log_path, 'r') as f:
+                    try:
+                        existing = json.load(f)
+                        if not isinstance(existing, list):
+                            existing = [existing]
+                    except:
+                        existing = []
+                existing.append(log_data)
+                with open(log_path, 'w') as f:
+                    json.dump(existing, f, indent=2)
+            else:
+                with open(log_path, 'w') as f:
+                    json.dump([log_data], f, indent=2)
+
+            print(f"\n✓ Action log saved to: {log_path}")
 
 
 def main():
@@ -212,11 +366,39 @@ def main():
         default='config.yaml',
         help='Path to config file (default: config.yaml)'
     )
+    parser.add_argument(
+        '--save-results',
+        help='Save scan results to JSON file (e.g., --save-results scan-results.json)'
+    )
+    parser.add_argument(
+        '--save-log',
+        help='Save action log to JSON file (e.g., --save-log actions.json)'
+    )
 
     args = parser.parse_args()
 
     finder = ImportantFileFinder(config_path=args.config)
-    files = finder.scan_directory(args.directory, recursive=not args.non_recursive)
+
+    # Use save_log path to exclude previously processed files
+    exclude_log = args.save_log if args.save_log else None
+
+    files = finder.scan_directory(
+        args.directory,
+        recursive=not args.non_recursive,
+        exclude_processed_log=exclude_log
+    )
+
+    # Save scan results if requested
+    if args.save_results:
+        results_path = Path(args.save_results).expanduser()
+        with open(results_path, 'w') as f:
+            json.dump({
+                'timestamp': datetime.now().isoformat(),
+                'directory': args.directory,
+                'file_count': len(files),
+                'files': files
+            }, f, indent=2, default=str)
+        print(f"\n✓ Scan results saved to: {results_path}")
 
     if args.no_interactive:
         finder.display_results(files)
@@ -226,7 +408,7 @@ def main():
             print("\n" + "="*80)
             proceed = input("\nWould you like to review these files interactively? (y/n): ")
             if proceed.lower() in ['y', 'yes']:
-                finder.interactive_review(files)
+                finder.interactive_review(files, save_log=args.save_log)
 
 
 if __name__ == '__main__':

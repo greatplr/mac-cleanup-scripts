@@ -50,11 +50,17 @@ Scans directories for files that may contain important information (credentials,
 # Scan Downloads folder (default)
 ./cleanup/important-file-finder.py
 
+# Scan with action logging (files won't appear in future scans)
+./cleanup/important-file-finder.py ~/Downloads --save-log actions.json
+
 # Scan a specific folder
 ./cleanup/important-file-finder.py ~/Desktop
 
 # Non-recursive scan (current directory only)
 ./cleanup/important-file-finder.py ~/Documents --non-recursive
+
+# Save scan results to JSON
+./cleanup/important-file-finder.py ~/Downloads --save-results scan.json
 
 # Just show results without interactive review
 ./cleanup/important-file-finder.py ~/Downloads --no-interactive
@@ -62,9 +68,14 @@ Scans directories for files that may contain important information (credentials,
 
 **Features:**
 - Identifies files matching important patterns (credentials, 2FA backup codes, financial docs, etc.)
+- **NEW:** Preview file contents in terminal (press 'v')
+- **NEW:** Quick destination shortcuts (1-6) for common organization folders
+- **NEW:** Tracks processed files - won't show them again if using --save-log
+- **NEW:** Save scan results and action logs to JSON
 - Interactive review mode to decide what to do with each file
-- Actions: Keep, Move, Delete, Open, or Skip
+- Actions: View, Open, Move (quick or custom), Delete, Keep, Skip
 - Shows file age, size, and categories
+- Automatically handles file name conflicts when moving
 
 ### 2. cleanup/cleanup-folders.py
 
@@ -106,6 +117,23 @@ Configuration file that defines:
 
 Edit `config.yaml` to customize:
 
+### Quick Destinations
+
+Set up single-key shortcuts for organizing files:
+
+```yaml
+quick_destinations:
+  "1":
+    label: "Credentials & Keys"
+    path: ~/Documents/Important/Credentials
+  "2":
+    label: "2FA Backup Codes"
+    path: ~/Documents/Important/2FA-Codes
+  # Add more as needed
+```
+
+During interactive review, press `1`, `2`, etc. to instantly move files to these locations.
+
 ### Important Patterns
 
 Add patterns to identify important files:
@@ -144,18 +172,36 @@ cleanup_rules:
 
 ## Recommended Workflow
 
-### Step 1: Find Important Files
+### Step 1: Initial Setup
 
-Run the important file finder on your Downloads and Desktop to identify files that need your attention:
+Copy and customize your config:
 
 ```bash
-./important-file-finder.py ~/Downloads
-./important-file-finder.py ~/Desktop
+cp config.yaml.example config.yaml
+# Edit config.yaml to set your preferred quick destinations
 ```
 
-Review each file and move important items to appropriate locations.
+### Step 2: Find and Organize Important Files
 
-### Step 2: Test Cleanup
+Run the important file finder with logging enabled:
+
+```bash
+# First scan - this creates the action log
+./cleanup/important-file-finder.py ~/Downloads --save-log ~/cleanup-actions.json
+
+# During interactive review:
+# - Press 'v' to preview file contents
+# - Press '1-6' for quick destinations
+# - Press 'k' to keep files (won't show again)
+# - Press 'd' to delete, 'm' for custom move
+
+# Subsequent scans will skip already-processed files
+./cleanup/important-file-finder.py ~/Downloads --save-log ~/cleanup-actions.json
+```
+
+The action log ensures files you've already reviewed won't appear in future scans.
+
+### Step 3: Test Cleanup
 
 Run cleanup in dry-run mode to see what would happen:
 
@@ -165,15 +211,15 @@ Run cleanup in dry-run mode to see what would happen:
 
 Review the output to ensure nothing important would be deleted.
 
-### Step 3: Run Cleanup
+### Step 4: Run Cleanup
 
 Once you're comfortable with the rules:
 
 ```bash
-./cleanup-folders.py
+./cleanup/cleanup-folders.py
 ```
 
-### Step 4: Automate (Optional)
+### Step 5: Automate (Optional)
 
 Create a cron job or use launchd to run these scripts regularly:
 

@@ -1,5 +1,32 @@
 # Configuration for Mac Cleanup Scripts
 
+# Quick destinations for organizing important files
+# These appear as single-key shortcuts in the interactive review
+quick_destinations:
+  "1":
+    label: "Credentials & Keys"
+    path: ~/Documents/Important/Credentials
+
+  "2":
+    label: "2FA Backup Codes"
+    path: ~/Documents/Important/2FA-Codes
+
+  "3":
+    label: "Financial Documents"
+    path: ~/Documents/Important/Financial
+
+  "4":
+    label: "Personal Documents"
+    path: ~/Documents/Important/Personal
+
+  "5":
+    label: "Crypto/Wallet"
+    path: ~/Documents/Important/Crypto
+
+  "6":
+    label: "Work Documents"
+    path: ~/Documents/Work
+
 # Patterns for identifying important files
 important_patterns:
   credentials:
