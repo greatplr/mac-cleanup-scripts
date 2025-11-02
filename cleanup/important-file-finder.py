@@ -218,18 +218,47 @@ class ImportantFileFinder:
 
                     # Check if destination is accessible
                     try:
-                        # Try to access the parent directory first
-                        if not dest_path.parent.exists():
-                            print(f"\n❌ Error: Parent directory does not exist: {dest_path.parent}")
-                            print(f"   This might be a network drive that's offline.")
-                            retry = input("   Try a different destination? (y/n): ")
-                            if retry.lower() == 'y':
-                                continue
-                            else:
-                                break
+                        # Check if this looks like a network drive path
+                        is_network_path = str(dest_path).startswith('/Volumes/') and not str(dest_path).startswith('/Volumes/Macintosh')
 
-                        # Create destination directory
-                        dest_path.mkdir(parents=True, exist_ok=True)
+                        # If destination doesn't exist, handle appropriately
+                        if not dest_path.exists():
+                            if is_network_path:
+                                # For network paths, check if the volume itself is mounted
+                                volume_root = Path('/Volumes') / dest_path.parts[2] if len(dest_path.parts) > 2 else None
+                                if volume_root and not volume_root.exists():
+                                    print(f"\n❌ Error: Network drive is not mounted: {volume_root}")
+                                    print(f"   Please mount the drive and try again.")
+                                    retry = input("   Try a different destination? (y/n): ")
+                                    if retry.lower() == 'y':
+                                        continue
+                                    else:
+                                        break
+                                # Volume is mounted, try to create the path
+                                try:
+                                    dest_path.mkdir(parents=True, exist_ok=True)
+                                    print(f"✓ Created directory: {dest_path}")
+                                except:
+                                    print(f"\n❌ Error: Cannot create directory on network drive: {dest_path}")
+                                    retry = input("   Try a different destination? (y/n): ")
+                                    if retry.lower() == 'y':
+                                        continue
+                                    else:
+                                        break
+                            else:
+                                # Local path - ask to create
+                                print(f"\nDirectory does not exist: {dest_path}")
+                                create = input("Create it? (y/n): ")
+                                if create.lower() == 'y':
+                                    try:
+                                        dest_path.mkdir(parents=True, exist_ok=True)
+                                        print(f"✓ Created {dest_path}")
+                                    except Exception as e:
+                                        print(f"❌ Error creating directory: {e}")
+                                        continue
+                                else:
+                                    print("Cancelled.")
+                                    continue
 
                         # Verify we can write to it
                         if not os.access(dest_path, os.W_OK):
